@@ -1,4 +1,4 @@
-package file_change_monitoring
+package monitor
 
 import (
 	"crypto/md5"

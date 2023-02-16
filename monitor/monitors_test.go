@@ -1,4 +1,4 @@
-package file_change_monitoring
+package monitor
 
 import (
 	"fmt"
@@ -46,5 +46,4 @@ func on(msg string, level int, err error) {
 	} else {
 		return
 	}
-
 }
