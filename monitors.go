@@ -10,13 +10,14 @@ import (
 type Monitor interface {
 	FileInitialState() (bool, error)
 	FileNowState() (bool, error)
-	VerifyFileChange() (string, bool, error)
+	VerifyFileChange() (string, int, error)
 	OutFileInfo() (FileInfo, FileInfo, bool)
 }
 
 type monitors struct {
 	MonitorId string
 	FilePath  string
+	Observe   func(msg string, level int, err error)
 	InitState FileInfo
 	NowState  FileInfo
 }
@@ -29,9 +30,11 @@ type FileInfo struct {
 
 var fileNilInfo = FileInfo{}
 
-func NewMonitor(filePath string) Monitor {
+func NewMonitor(filePath string, id string, on func(msg string, level int, err error)) Monitor {
 	return &monitors{
+		MonitorId: id,
 		FilePath:  filePath,
+		Observe:   on,
 		InitState: FileInfo{},
 		NowState:  FileInfo{},
 	}
@@ -84,27 +87,31 @@ func getFileInfo(filepath string) (FileInfo, bool, error) {
 }
 
 // VerifyFileChange Verify that the file has changed
-func (m *monitors) VerifyFileChange() (string, bool, error) {
+func (m *monitors) VerifyFileChange() (string, int, error) {
 	ok, err := m.FileNowState()
 	if err != nil {
-		return "", false, err
+		return "", -1, err
 	}
-	return verifyFileChange(m.InitState, m.NowState, ok)
+
+	return func(msg string, l int, err error) (string, int, error) {
+		defer m.Observe(msg, l, err)
+		return msg, l, err
+	}(verifyFileChange(m.InitState, m.NowState, ok))
 }
 
-func verifyFileChange(init FileInfo, now FileInfo, ok bool) (string, bool, error) {
+func verifyFileChange(init FileInfo, now FileInfo, ok bool) (string, int, error) {
 	if !ok || init.FileInfo.IsDir() || now.FileInfo.IsDir() {
-		return "ERROR ", false, nil
+		return "ERROR ", -1, nil
 	}
 	switch {
 	case init.FileHash != now.FileHash:
-		return "file content changed. <HASH changed>", true, nil
+		return "file content changed. <HASH changed>", 1, nil
 	case init.FileInfo.ModTime() != now.FileInfo.ModTime():
-		return "file Time changed. <TIME changed>", true, nil
+		return "file Time changed. <TIME changed>", 1, nil
 	case init.FileInfo.Mode() != now.FileInfo.Mode():
-		return "file MODE changed. <MODE changed>", true, nil
+		return "file MODE changed. <MODE changed>", 1, nil
 	default:
-		return "NOT CHANGE.", true, nil
+		return "NOT CHANGE.", 0, nil
 	}
 }
 

@@ -2,7 +2,6 @@ package file_change_monitoring
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -11,7 +10,7 @@ import (
 func TestMonitor(t *testing.T) {
 	filepath := "./1.txt"
 	f, _ := os.Create(filepath)
-	mon := NewMonitor(filepath)
+	mon := NewMonitor(filepath, "", on)
 
 	func(ok bool, err error) {
 		if err != nil || !ok {
@@ -19,6 +18,7 @@ func TestMonitor(t *testing.T) {
 			return
 		}
 	}(mon.FileInitialState())
+
 	func(err error) {
 		if err != nil {
 			fmt.Println(err)
@@ -26,12 +26,25 @@ func TestMonitor(t *testing.T) {
 		}
 	}(f.Close())
 
-	for {
-		if msg, ok, _ := mon.VerifyFileChange(); ok {
-			log.Printf("%s [monitor] > %s \n", filepath, msg)
-			init, now, _ := mon.OutFileInfo()
-			fmt.Printf("%s <=> %s \n", init.FileHash, now.FileHash)
+	func() {
+		for {
+			_, _, err := mon.VerifyFileChange()
+			if err != nil {
+				return
+			}
+			time.Sleep(5 * time.Second)
 		}
-		time.Sleep(5 * time.Second)
+	}()
+}
+
+func on(msg string, level int, err error) {
+	if level > 0 {
+		fmt.Println(msg)
+		return
+	} else if level < 0 {
+		fmt.Println(msg, level, err)
+	} else {
+		return
 	}
+
 }
